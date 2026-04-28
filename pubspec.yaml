@@ -12,6 +12,9 @@ dependencies:
     sdk: flutter
   mobile_scanner: ^7.1.2
   image_picker: ^1.1.2
+  geolocator: ^14.0.2
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:
