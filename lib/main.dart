@@ -134,7 +134,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         );
                       },
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
                       itemCount: _photos.length,
                     ),
             ),
