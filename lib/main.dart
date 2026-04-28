@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:record/record.dart';
 
 void main() {
   runApp(const MyApp());
@@ -36,8 +40,19 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   final List<String> _photoBase64List = <String>[];
+  final List<String> _audioPaths = <String>[];
   String _lastQrText = 'Aún no se ha escaneado ningún código.';
+  bool _isRecording = false;
+
+  @override
+  void dispose() {
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   Future<void> _openQrScanner() async {
     final String? scannedText = await Navigator.of(context).push<String>(
@@ -83,6 +98,54 @@ class _MyHomePageState extends State<MyHomePage> {
         builder: (_) => PhotoPreviewPage(encodedImage: encodedImage),
       ),
     );
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      final String? path = await _audioRecorder.stop();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isRecording = false;
+        if (path != null) {
+          _audioPaths.add(path);
+        }
+      });
+      return;
+    }
+
+    final bool hasPermission = await _audioRecorder.hasPermission();
+    if (!hasPermission) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Se requiere permiso de micrófono para grabar audio.')),
+      );
+      return;
+    }
+
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final String path = '${appDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: path,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isRecording = true;
+    });
+  }
+
+  Future<void> _playAudio(String path) async {
+    await _audioPlayer.stop();
+    await _audioPlayer.play(DeviceFileSource(path));
   }
 
   @override
@@ -174,6 +237,37 @@ class _MyHomePageState extends State<MyHomePage> {
                         itemCount: _photoBase64List.length,
                       ),
               ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _toggleRecording,
+                icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                label: Text(_isRecording ? 'Detener grabación' : 'Grabar audio'),
+              ),
+              const SizedBox(height: 8),
+              Text('Audios grabados: ${_audioPaths.length}'),
+              const SizedBox(height: 8),
+              if (_audioPaths.isEmpty)
+                const Text('Todavía no has grabado audios.')
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _audioPaths.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (BuildContext context, int index) {
+                    return ListTile(
+                      tileColor: Colors.grey.shade200,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      leading: const Icon(Icons.audiotrack),
+                      title: Text('Audio ${index + 1}'),
+                      subtitle: const Text('Grabación guardada'),
+                      trailing: IconButton(
+                        onPressed: () => _playAudio(_audioPaths[index]),
+                        icon: const Icon(Icons.play_arrow),
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
         ),
