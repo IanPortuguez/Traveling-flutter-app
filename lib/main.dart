@@ -51,11 +51,32 @@ class _MyHomePageState extends State<MyHomePage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final List<String> _photoBase64List = <String>[];
   final List<String> _audioPaths = <String>[];
+  final TextEditingController _receiverNameController = TextEditingController();
+  final RegExp _receiverNamePattern = RegExp(r'^[A-Za-z]+(?: [A-Za-z]+)*$');
   String? _lastQrText;
+  String? _savedReceiverName;
+  String? _currentAudioPath;
   bool _isRecording = false;
+  bool _isAudioPlaying = false;
+
+  static const double _sectionHeight = 280;
+
+  @override
+  void initState() {
+    super.initState();
+    _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAudioPlaying = state == PlayerState.playing;
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _receiverNameController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -150,9 +171,39 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  Future<void> _playAudio(String path) async {
+  Future<void> _togglePlayPauseAudio(String path) async {
+    if (_currentAudioPath == path) {
+      if (_isAudioPlaying) {
+        await _audioPlayer.pause();
+      } else {
+        await _audioPlayer.resume();
+      }
+      return;
+    }
+
+    _currentAudioPath = path;
     await _audioPlayer.stop();
     await _audioPlayer.play(DeviceFileSource(path));
+  }
+
+  void _saveReceiverName() {
+    final String name = _receiverNameController.text.trim();
+    final bool isValid = _receiverNamePattern.hasMatch(name);
+    if (!isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nombre inválido. Usa solo letras y espacios, sin espacios al inicio o final.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _savedReceiverName = name;
+      _receiverNameController.text = name;
+    });
   }
 
   @override
@@ -168,8 +219,10 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Card(
-                child: Padding(
+              SizedBox(
+                height: _sectionHeight,
+                child: Card(
+                  child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -197,13 +250,17 @@ class _MyHomePageState extends State<MyHomePage> {
                           backgroundColor: Colors.white,
                         ),
                       ],
+                      const Spacer(),
                     ],
                   ),
                 ),
               ),
+              ),
               const SizedBox(height: 12),
-              Card(
-                child: Padding(
+              SizedBox(
+                height: _sectionHeight,
+                child: Card(
+                  child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -246,13 +303,17 @@ class _MyHomePageState extends State<MyHomePage> {
                                 itemCount: _photoBase64List.length,
                               ),
                       ),
+                      const Spacer(),
                     ],
                   ),
                 ),
               ),
+              ),
               const SizedBox(height: 12),
-              Card(
-                child: Padding(
+              SizedBox(
+                height: _sectionHeight,
+                child: Card(
+                  child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -280,13 +341,72 @@ class _MyHomePageState extends State<MyHomePage> {
                               title: Text('Audio ${index + 1}'),
                               subtitle: const Text('Grabación guardada'),
                               trailing: IconButton(
-                                onPressed: () => _playAudio(_audioPaths[index]),
-                                icon: const Icon(Icons.play_arrow),
+                                onPressed: () => _togglePlayPauseAudio(_audioPaths[index]),
+                                icon: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 250),
+                                  transitionBuilder: (Widget child, Animation<double> animation) {
+                                    return ScaleTransition(scale: animation, child: child);
+                                  },
+                                  child: Icon(
+                                    _currentAudioPath == _audioPaths[index] && _isAudioPlaying
+                                        ? Icons.pause_circle_filled
+                                        : Icons.play_circle_fill,
+                                    key: ValueKey<bool>(
+                                      _currentAudioPath == _audioPaths[index] && _isAudioPlaying,
+                                    ),
+                                  ),
+                                ),
                               ),
                             );
                           },
                         ),
+                      const Spacer(),
                     ],
+                  ),
+                ),
+              ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: _sectionHeight,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Nombre del receptor',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _receiverNameController,
+                          enabled: _savedReceiverName == null,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            hintText: 'Escribe el nombre',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: FilledButton.icon(
+                            onPressed: _savedReceiverName == null ? _saveReceiverName : null,
+                            icon: const Icon(Icons.check),
+                            label: const Text('Guardar nombre'),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _savedReceiverName == null
+                              ? 'Aún no se ha guardado el nombre.'
+                              : 'Nombre guardado: $_savedReceiverName',
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
                   ),
                 ),
               ),
