@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -49,12 +48,11 @@ class _MyHomePageState extends State<MyHomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final List<String> _photoBase64List = <String>[];
+  final List<Uint8List> _photoBytesList = <Uint8List>[];
   final List<String> _audioPaths = <String>[];
   final List<String> _notes = <String>[];
   final TextEditingController _receiverNameController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  final RegExp _receiverNamePattern = RegExp(r'^[A-Za-z]+$');
   String? _lastQrText;
   String? _savedReceiverName;
   String? _currentAudioPath;
@@ -98,7 +96,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _takePhoto() async {
-    if (_photoBase64List.length >= 10) {
+    if (_photoBytesList.length >= 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Solo puedes tomar un máximo de 10 fotos.'),
@@ -107,24 +105,27 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    final XFile? photo = await _imagePicker.pickImage(source: ImageSource.camera);
+    final XFile? photo = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1280,
+    );
 
     if (photo == null || !mounted) {
       return;
     }
 
-    final List<int> bytes = await photo.readAsBytes();
-    final String encodedImage = base64Encode(bytes);
+    final Uint8List bytes = await photo.readAsBytes();
 
     setState(() {
-      _photoBase64List.add(encodedImage);
+      _photoBytesList.add(bytes);
     });
   }
 
-  void _openPhotoPreview(String encodedImage) {
+  void _openPhotoPreview(Uint8List photoBytes) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PhotoPreviewPage(encodedImage: encodedImage),
+        builder: (_) => PhotoPreviewPage(photoBytes: photoBytes),
       ),
     );
   }
@@ -189,12 +190,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _saveReceiverName() {
     final String name = _receiverNameController.text.trim();
-    final bool isValid = _receiverNamePattern.hasMatch(name);
+    final bool isValid = name.isNotEmpty && name.length <= 50;
     if (!isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Nombre inválido. Usa solo letras, sin espacios.',
+            'Nombre inválido. Debe tener entre 1 y 50 caracteres.',
           ),
         ),
       );
@@ -321,7 +322,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         controller: _receiverNameController,
                         enabled: _savedReceiverName == null,
                         decoration: InputDecoration(
-                          hintText: 'Mínimo 1 letra, Máximo 50. Solo letras.',
+                          hintText: 'Mínimo 1 carácter, Máximo 50.',
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
@@ -359,6 +360,11 @@ class _MyHomePageState extends State<MyHomePage> {
                             backgroundColor: Colors.white,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          _lastQrText!,
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ],
                   ),
@@ -370,28 +376,28 @@ class _MyHomePageState extends State<MyHomePage> {
                     children: [
                       _pillButton(
                         icon: Icons.camera_alt,
-                        label: 'Tomar Foto (${_photoBase64List.length}/10)',
+                        label: 'Tomar Foto (${_photoBytesList.length}/10)',
                         onPressed: _takePhoto,
                       ),
-                      if (_photoBase64List.isNotEmpty) ...[
+                      if (_photoBytesList.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 90,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: _photoBase64List.length,
+                            itemCount: _photoBytesList.length,
                             separatorBuilder: (_, _) => const SizedBox(width: 8),
                             itemBuilder: (BuildContext context, int index) {
-                              final Uint8List bytes = base64Decode(_photoBase64List[index]);
                               return GestureDetector(
-                                onTap: () => _openPhotoPreview(_photoBase64List[index]),
+                                onTap: () => _openPhotoPreview(_photoBytesList[index]),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Image.memory(
-                                    bytes,
+                                    _photoBytesList[index],
                                     width: 90,
                                     height: 90,
                                     fit: BoxFit.cover,
+                                    cacheWidth: 180,
                                   ),
                                 ),
                               );
@@ -537,19 +543,17 @@ class _QrScannerPageState extends State<QrScannerPage> {
 }
 
 class PhotoPreviewPage extends StatelessWidget {
-  const PhotoPreviewPage({super.key, required this.encodedImage});
+  const PhotoPreviewPage({super.key, required this.photoBytes});
 
-  final String encodedImage;
+  final Uint8List photoBytes;
 
   @override
   Widget build(BuildContext context) {
-    final Uint8List decodedBytes = base64Decode(encodedImage);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Vista de foto')),
       body: Center(
         child: InteractiveViewer(
-          child: Image.memory(decodedBytes, fit: BoxFit.contain),
+          child: Image.memory(photoBytes, fit: BoxFit.contain),
         ),
       ),
     );
