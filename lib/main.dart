@@ -22,7 +22,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Traveling App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(240, 48),
+          ),
+        ),
       ),
       home: const MyHomePage(title: 'Traveling App'),
     );
@@ -44,7 +51,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final List<String> _photoBase64List = <String>[];
   final List<String> _audioPaths = <String>[];
-  String _lastQrText = 'Aún no se ha escaneado ningún código.';
+  String? _lastQrText;
   bool _isRecording = false;
 
   @override
@@ -159,115 +166,130 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const Text(
                         'Texto del QR escaneado:',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
-                      Text(_lastQrText),
+                      Text(_lastQrText ?? 'Aún no se ha escaneado ningún código.'),
                       const SizedBox(height: 10),
-                      FilledButton.icon(
-                        onPressed: _openQrScanner,
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text('Escanear QR'),
+                      SizedBox(
+                        width: 240,
+                        child: FilledButton.icon(
+                          onPressed: _openQrScanner,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text('Escanear QR'),
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'QR generado con el texto escaneado:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: QrImageView(
-                          data: _lastQrText,
+                      if (_lastQrText != null) ...[
+                        const SizedBox(height: 16),
+                        QrImageView(
+                          data: _lastQrText!,
                           size: 170,
                           backgroundColor: Colors.white,
                         ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 240,
+                        child: FilledButton.icon(
+                          onPressed: _takePhoto,
+                          icon: const Icon(Icons.camera_alt),
+                          label: const Text('Tomar foto'),
+                        ),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _lastQrText,
-                        textAlign: TextAlign.center,
+                      const SizedBox(height: 8),
+                      Text('Fotos tomadas: ${_photoBase64List.length}/10'),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 140,
+                        child: _photoBase64List.isEmpty
+                            ? const Center(
+                                child: Text('Todavía no has tomado fotos.'),
+                              )
+                            : ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final Uint8List decodedBytes = base64Decode(_photoBase64List[index]);
+                                  return GestureDetector(
+                                    onTap: () => _openPhotoPreview(_photoBase64List[index]),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.memory(
+                                        decodedBytes,
+                                        width: 120,
+                                        height: 140,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                                itemCount: _photoBase64List.length,
+                              ),
                       ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _takePhoto,
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Tomar foto (solo cámara)'),
-              ),
-              const SizedBox(height: 8),
-              Text('Fotos tomadas: ${_photoBase64List.length}/10'),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 140,
-                child: _photoBase64List.isEmpty
-                    ? const Center(
-                        child: Text('Todavía no has tomado fotos.'),
-                      )
-                    : ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemBuilder: (BuildContext context, int index) {
-                          final Uint8List decodedBytes = base64Decode(_photoBase64List[index]);
-                          return GestureDetector(
-                            onTap: () => _openPhotoPreview(_photoBase64List[index]),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.memory(
-                                decodedBytes,
-                                width: 120,
-                                height: 140,
-                                fit: BoxFit.cover,
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 240,
+                        child: FilledButton.icon(
+                          onPressed: _toggleRecording,
+                          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                          label: Text(_isRecording ? 'Detener grabación' : 'Grabar audio'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_audioPaths.isNotEmpty)
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _audioPaths.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (BuildContext context, int index) {
+                            return ListTile(
+                              tileColor: Colors.grey.shade200,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              leading: const Icon(Icons.audiotrack),
+                              title: Text('Audio ${index + 1}'),
+                              subtitle: const Text('Grabación guardada'),
+                              trailing: IconButton(
+                                onPressed: () => _playAudio(_audioPaths[index]),
+                                icon: const Icon(Icons.play_arrow),
                               ),
-                            ),
-                          );
-                        },
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemCount: _photoBase64List.length,
-                      ),
-              ),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _toggleRecording,
-                icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                label: Text(_isRecording ? 'Detener grabación' : 'Grabar audio'),
-              ),
-              const SizedBox(height: 8),
-              Text('Audios grabados: ${_audioPaths.length}'),
-              const SizedBox(height: 8),
-              if (_audioPaths.isEmpty)
-                const Text('Todavía no has grabado audios.')
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _audioPaths.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (BuildContext context, int index) {
-                    return ListTile(
-                      tileColor: Colors.grey.shade200,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      leading: const Icon(Icons.audiotrack),
-                      title: Text('Audio ${index + 1}'),
-                      subtitle: const Text('Grabación guardada'),
-                      trailing: IconButton(
-                        onPressed: () => _playAudio(_audioPaths[index]),
-                        icon: const Icon(Icons.play_arrow),
-                      ),
-                    );
-                  },
+                            );
+                          },
+                        ),
+                    ],
+                  ),
                 ),
+              ),
             ],
           ),
         ),
