@@ -52,7 +52,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final List<String> _photoBase64List = <String>[];
   final List<String> _audioPaths = <String>[];
   final TextEditingController _receiverNameController = TextEditingController();
-  final RegExp _receiverNamePattern = RegExp(r'^[A-Za-z]+(?: [A-Za-z]+)*$');
+  final RegExp _receiverNamePattern = RegExp(r'^[A-Za-z]+$');
   String? _lastQrText;
   String? _savedReceiverName;
   String? _currentAudioPath;
@@ -193,7 +193,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Nombre inválido. Usa solo letras y espacios, sin espacios al inicio o final.',
+            'Nombre inválido. Usa solo letras, sin espacios.',
           ),
         ),
       );
@@ -232,7 +232,19 @@ class _MyHomePageState extends State<MyHomePage> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
-                      Text(_lastQrText ?? 'Aún no se ha escaneado ningún código.'),
+                      SizedBox(
+                        width: 240,
+                        height: 52,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(_lastQrText ?? ''),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       SizedBox(
                         width: 240,
@@ -274,14 +286,12 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text('Fotos tomadas: ${_photoBase64List.length}/10'),
+                      if (_photoBase64List.isNotEmpty) Text('Fotos tomadas: ${_photoBase64List.length}/10'),
                       const SizedBox(height: 12),
                       SizedBox(
                         height: 140,
                         child: _photoBase64List.isEmpty
-                            ? const Center(
-                                child: Text('Todavía no has tomado fotos.'),
-                              )
+                            ? const SizedBox.shrink()
                             : ListView.separated(
                                 scrollDirection: Axis.horizontal,
                                 itemBuilder: (BuildContext context, int index) {
@@ -327,8 +337,17 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (_audioPaths.isNotEmpty)
-                        ListView.separated(
+                      SizedBox(
+                        height: 52,
+                        width: 240,
+                        child: _audioPaths.isEmpty
+                            ? DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              )
+                            : ListView.separated(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: _audioPaths.length,
@@ -360,6 +379,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             );
                           },
                         ),
+                      ),
                       const Spacer(),
                     ],
                   ),
@@ -399,10 +419,20 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Text(
-                          _savedReceiverName == null
-                              ? 'Aún no se ha guardado el nombre.'
-                              : 'Nombre guardado: $_savedReceiverName',
+                        SizedBox(
+                          width: 240,
+                          height: 52,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                _savedReceiverName == null ? '' : 'Nombre guardado: $_savedReceiverName',
+                              ),
+                            ),
+                          ),
                         ),
                         const Spacer(),
                       ],
