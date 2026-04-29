@@ -51,7 +51,9 @@ class _MyHomePageState extends State<MyHomePage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final List<String> _photoBase64List = <String>[];
   final List<String> _audioPaths = <String>[];
+  final List<String> _notes = <String>[];
   final TextEditingController _receiverNameController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
   final RegExp _receiverNamePattern = RegExp(r'^[A-Za-z]+$');
   String? _lastQrText;
   String? _savedReceiverName;
@@ -75,6 +77,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     _receiverNameController.dispose();
+    _noteController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -204,6 +207,44 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  Future<void> _showAddNoteDialog() async {
+    _noteController.clear();
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Añadir nota'),
+          content: TextField(
+            controller: _noteController,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Escribe tu nota',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final String note = _noteController.text.trim();
+                if (note.isEmpty) {
+                  return;
+                }
+                setState(() {
+                  _notes.add(note);
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _actionPanel({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -301,46 +342,131 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 const SizedBox(height: 14),
                 _actionPanel(
-                  child: _pillButton(
-                    icon: Icons.qr_code_scanner,
-                    label: 'Escanear QR',
-                    onPressed: _openQrScanner,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _pillButton(
+                        icon: Icons.qr_code_scanner,
+                        label: 'Escanear QR',
+                        onPressed: _openQrScanner,
+                      ),
+                      if (_lastQrText != null) ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: QrImageView(
+                            data: _lastQrText!,
+                            size: 160,
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
                 _actionPanel(
-                  child: _pillButton(
-                    icon: Icons.camera_alt,
-                    label: 'Tomar Foto (${_photoBase64List.length}/10)',
-                    onPressed: _takePhoto,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _pillButton(
+                        icon: Icons.camera_alt,
+                        label: 'Tomar Foto (${_photoBase64List.length}/10)',
+                        onPressed: _takePhoto,
+                      ),
+                      if (_photoBase64List.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 90,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _photoBase64List.length,
+                            separatorBuilder: (_, _) => const SizedBox(width: 8),
+                            itemBuilder: (BuildContext context, int index) {
+                              final Uint8List bytes = base64Decode(_photoBase64List[index]);
+                              return GestureDetector(
+                                onTap: () => _openPhotoPreview(_photoBase64List[index]),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    bytes,
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
                 _actionPanel(
-                  child: _pillButton(
-                    icon: Icons.note_add,
-                    label: 'Añadir Nota',
-                    onPressed: () {},
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _pillButton(
+                        icon: Icons.note_add,
+                        label: 'Añadir Nota',
+                        onPressed: _showAddNoteDialog,
+                      ),
+                      if (_notes.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        ..._notes.asMap().entries.map(
+                          (MapEntry<int, String> entry) => Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.sticky_note_2_outlined),
+                              title: Text('Nota ${entry.key + 1}'),
+                              subtitle: Text(
+                                entry.value,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => NotePreviewPage(noteText: entry.value),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
                 _actionPanel(
-                  child: _pillButton(
-                    icon: Icons.mic,
-                    label: _isRecording ? 'Detener Audio' : 'Grabar Audio',
-                    onPressed: _toggleRecording,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _pillButton(
+                        icon: Icons.mic,
+                        label: _isRecording ? 'Detener Audio' : 'Grabar Audio',
+                        onPressed: _toggleRecording,
+                      ),
+                      if (_audioPaths.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        ..._audioPaths.asMap().entries.map(
+                          (MapEntry<int, String> entry) => Card(
+                            child: ListTile(
+                              leading: Icon(
+                                _currentAudioPath == entry.value && _isAudioPlaying
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_fill,
+                              ),
+                              title: Text('Audio ${entry.key + 1}'),
+                              onTap: () => _togglePlayPauseAudio(entry.value),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (_lastQrText != null) ...[
-                  const SizedBox(height: 14),
-                  _actionPanel(
-                    child: QrImageView(
-                      data: _lastQrText!,
-                      size: 160,
-                      backgroundColor: Colors.white,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -424,6 +550,30 @@ class PhotoPreviewPage extends StatelessWidget {
       body: Center(
         child: InteractiveViewer(
           child: Image.memory(decodedBytes, fit: BoxFit.contain),
+        ),
+      ),
+    );
+  }
+}
+
+class NotePreviewPage extends StatelessWidget {
+  const NotePreviewPage({super.key, required this.noteText});
+
+  final String noteText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Vista de nota')),
+      body: Center(
+        child: InteractiveViewer(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              noteText,
+              style: const TextStyle(fontSize: 24),
+            ),
+          ),
         ),
       ),
     );
