@@ -59,8 +59,6 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isRecording = false;
   bool _isAudioPlaying = false;
 
-  static const double _sectionHeight = 280;
-
   @override
   void initState() {
     super.initState();
@@ -206,241 +204,145 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  Widget _actionPanel({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _pillButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    Color background = const Color(0xFFE9E7EF),
+    Color foreground = const Color(0xFF665A94),
+  }) {
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        minimumSize: const Size.fromHeight(58),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+      ),
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(label),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+        backgroundColor: const Color(0xFF090812),
+        foregroundColor: Colors.white,
+        title: const Text('Almacén 3R manager'),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                height: _sectionHeight,
-                child: Card(
-                  child: Padding(
-                  padding: const EdgeInsets.all(12),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: NetworkImage(
+              'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?auto=format&fit=crop&w=800&q=60',
+            ),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.35),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _pillButton(
+                  icon: Icons.route,
+                  label: 'INICIAR RUTA',
+                  onPressed: () {},
+                  background: const Color(0xFF6DB560),
+                  foreground: Colors.white,
+                ),
+                const SizedBox(height: 14),
+                _actionPanel(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Texto del QR escaneado:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        'Nombre del Receptor(a):',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                       ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: 240,
-                        height: 52,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _receiverNameController,
+                        enabled: _savedReceiverName == null,
+                        decoration: InputDecoration(
+                          hintText: 'Mínimo 1 letra, Máximo 50. Solo letras.',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Center(
-                            child: Text(_lastQrText ?? ''),
-                          ),
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: 240,
-                        child: FilledButton.icon(
-                          onPressed: _openQrScanner,
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: const Text('Escanear QR'),
-                        ),
+                      const SizedBox(height: 14),
+                      _pillButton(
+                        icon: Icons.check_circle_outline,
+                        label: _savedReceiverName == null ? 'Guardar Nombre' : 'Nombre guardado',
+                        onPressed: _savedReceiverName == null ? _saveReceiverName : null,
+                        background: const Color(0xFF439B2A),
+                        foreground: Colors.white,
                       ),
-                      if (_lastQrText != null) ...[
-                        const SizedBox(height: 16),
-                        QrImageView(
-                          data: _lastQrText!,
-                          size: 170,
-                          backgroundColor: Colors.white,
-                        ),
-                      ],
-                      const Spacer(),
                     ],
                   ),
                 ),
-              ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: _sectionHeight,
-                child: Card(
-                  child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: FilledButton.icon(
-                          onPressed: _takePhoto,
-                          icon: const Icon(Icons.camera_alt),
-                          label: const Text('Tomar foto'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_photoBase64List.isNotEmpty) Text('Fotos tomadas: ${_photoBase64List.length}/10'),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 140,
-                        child: _photoBase64List.isEmpty
-                            ? const SizedBox.shrink()
-                            : ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemBuilder: (BuildContext context, int index) {
-                                  final Uint8List decodedBytes = base64Decode(_photoBase64List[index]);
-                                  return GestureDetector(
-                                    onTap: () => _openPhotoPreview(_photoBase64List[index]),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.memory(
-                                        decodedBytes,
-                                        width: 120,
-                                        height: 140,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                separatorBuilder: (_, _) => const SizedBox(width: 10),
-                                itemCount: _photoBase64List.length,
-                              ),
-                      ),
-                      const Spacer(),
-                    ],
+                const SizedBox(height: 14),
+                _actionPanel(
+                  child: _pillButton(
+                    icon: Icons.qr_code_scanner,
+                    label: 'Escanear QR',
+                    onPressed: _openQrScanner,
                   ),
                 ),
-              ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: _sectionHeight,
-                child: Card(
-                  child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: FilledButton.icon(
-                          onPressed: _toggleRecording,
-                          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                          label: Text(_isRecording ? 'Detener grabación' : 'Grabar audio'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 52,
-                        width: 240,
-                        child: _audioPaths.isEmpty
-                            ? DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              )
-                            : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _audioPaths.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (BuildContext context, int index) {
-                            return ListTile(
-                              tileColor: Colors.grey.shade200,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              leading: const Icon(Icons.audiotrack),
-                              title: Text('Audio ${index + 1}'),
-                              subtitle: const Text('Grabación guardada'),
-                              trailing: IconButton(
-                                onPressed: () => _togglePlayPauseAudio(_audioPaths[index]),
-                                icon: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 250),
-                                  transitionBuilder: (Widget child, Animation<double> animation) {
-                                    return ScaleTransition(scale: animation, child: child);
-                                  },
-                                  child: Icon(
-                                    _currentAudioPath == _audioPaths[index] && _isAudioPlaying
-                                        ? Icons.pause_circle_filled
-                                        : Icons.play_circle_fill,
-                                    key: ValueKey<bool>(
-                                      _currentAudioPath == _audioPaths[index] && _isAudioPlaying,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const Spacer(),
-                    ],
+                const SizedBox(height: 14),
+                _actionPanel(
+                  child: _pillButton(
+                    icon: Icons.camera_alt,
+                    label: 'Tomar Foto (${_photoBase64List.length}/10)',
+                    onPressed: _takePhoto,
                   ),
                 ),
-              ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: _sectionHeight,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Nombre del receptor',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _receiverNameController,
-                          enabled: _savedReceiverName == null,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            hintText: 'Escribe el nombre',
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: FilledButton.icon(
-                            onPressed: _savedReceiverName == null ? _saveReceiverName : null,
-                            icon: const Icon(Icons.check),
-                            label: const Text('Guardar nombre'),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: 240,
-                          height: 52,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                _savedReceiverName == null ? '' : 'Nombre guardado: $_savedReceiverName',
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                      ],
+                const SizedBox(height: 14),
+                _actionPanel(
+                  child: _pillButton(
+                    icon: Icons.note_add,
+                    label: 'Añadir Nota',
+                    onPressed: () {},
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _actionPanel(
+                  child: _pillButton(
+                    icon: Icons.mic,
+                    label: _isRecording ? 'Detener Audio' : 'Grabar Audio',
+                    onPressed: _toggleRecording,
+                  ),
+                ),
+                if (_lastQrText != null) ...[
+                  const SizedBox(height: 14),
+                  _actionPanel(
+                    child: QrImageView(
+                      data: _lastQrText!,
+                      size: 160,
+                      backgroundColor: Colors.white,
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              ],
+            ),
           ),
         ),
       ),
