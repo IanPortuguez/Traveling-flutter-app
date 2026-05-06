@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
@@ -35,6 +37,46 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class CaptureMetadata {
+  const CaptureMetadata({
+    required this.capturedAt,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final DateTime capturedAt;
+  final double latitude;
+  final double longitude;
+}
+
+class PhotoCapture {
+  const PhotoCapture({required this.bytes, required this.metadata});
+
+  final Uint8List bytes;
+  final CaptureMetadata metadata;
+}
+
+class AudioCapture {
+  const AudioCapture({required this.path, required this.metadata});
+
+  final String path;
+  final CaptureMetadata metadata;
+}
+
+class NoteCapture {
+  const NoteCapture({required this.note, required this.metadata});
+
+  final String note;
+  final CaptureMetadata metadata;
+}
+
+class QrCapture {
+  const QrCapture({required this.value, required this.metadata});
+
+  final String value;
+  final CaptureMetadata metadata;
+}
+
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
 
@@ -48,16 +90,22 @@ class _MyHomePageState extends State<MyHomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final List<Uint8List> _photoBytesList = <Uint8List>[];
-  final List<String> _audioPaths = <String>[];
-  final List<String> _notes = <String>[];
+  final List<PhotoCapture> _photoCaptures = <PhotoCapture>[];
+  final List<AudioCapture> _audioCaptures = <AudioCapture>[];
+  final List<NoteCapture> _noteCaptures = <NoteCapture>[];
+  final List<QrCapture> _qrCaptures = <QrCapture>[];
+  final List<CaptureMetadata> _routePoints = <CaptureMetadata>[];
   final TextEditingController _receiverNameController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  String? _lastQrText;
+  QrCapture? _lastQrCapture;
   String? _savedReceiverName;
   String? _currentAudioPath;
   bool _isRecording = false;
   bool _isAudioPlaying = false;
+  bool _isRouteTracking = false;
+  Timer? _routeTimer;
+  Duration _currentAudioDuration = Duration.zero;
+  Duration _currentAudioPosition = Duration.zero;
 
   @override
   void initState() {
@@ -68,17 +116,61 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       setState(() {
         _isAudioPlaying = state == PlayerState.playing;
+        if (state == PlayerState.stopped || state == PlayerState.completed) {
+          _currentAudioPosition = Duration.zero;
+        }
+      });
+    });
+    _audioPlayer.onDurationChanged.listen((Duration duration) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _currentAudioDuration = duration;
+      });
+    });
+    _audioPlayer.onPositionChanged.listen((Duration position) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _currentAudioPosition = position;
       });
     });
   }
 
   @override
   void dispose() {
+    _routeTimer?.cancel();
     _receiverNameController.dispose();
     _noteController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<CaptureMetadata?> _captureMetadata() async {
+    final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return null;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return null;
+    }
+
+    final Position position = await Geolocator.getCurrentPosition();
+    return CaptureMetadata(
+      capturedAt: DateTime.now(),
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
   }
 
   Future<void> _openQrScanner() async {
@@ -90,13 +182,25 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
+    final CaptureMetadata? metadata = await _captureMetadata();
+    if (!mounted) {
+      return;
+    }
+
+    final QrCapture capture = QrCapture(
+      value: scannedText,
+      metadata: metadata ??
+          CaptureMetadata(capturedAt: DateTime.now(), latitude: 0, longitude: 0),
+    );
+
     setState(() {
-      _lastQrText = scannedText;
+      _lastQrCapture = capture;
+      _qrCaptures.add(capture);
     });
   }
 
   Future<void> _takePhoto() async {
-    if (_photoBytesList.length >= 10) {
+    if (_photoCaptures.length >= 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Solo puedes tomar un máximo de 10 fotos.'),
@@ -116,9 +220,20 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     final Uint8List bytes = await photo.readAsBytes();
+    final CaptureMetadata? metadata = await _captureMetadata();
+
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
-      _photoBytesList.add(bytes);
+      _photoCaptures.add(
+        PhotoCapture(
+          bytes: bytes,
+          metadata: metadata ??
+              CaptureMetadata(capturedAt: DateTime.now(), latitude: 0, longitude: 0),
+        ),
+      );
     });
   }
 
@@ -136,10 +251,20 @@ class _MyHomePageState extends State<MyHomePage> {
       if (!mounted) {
         return;
       }
+      final CaptureMetadata? metadata = await _captureMetadata();
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _isRecording = false;
         if (path != null) {
-          _audioPaths.add(path);
+          _audioCaptures.add(
+            AudioCapture(
+              path: path,
+              metadata: metadata ??
+                  CaptureMetadata(capturedAt: DateTime.now(), latitude: 0, longitude: 0),
+            ),
+          );
         }
       });
       return;
@@ -184,8 +309,54 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     _currentAudioPath = path;
+    _currentAudioDuration = Duration.zero;
+    _currentAudioPosition = Duration.zero;
     await _audioPlayer.stop();
     await _audioPlayer.play(DeviceFileSource(path));
+  }
+
+  Future<void> _seekAudio(double value) async {
+    if (_currentAudioPath == null) {
+      return;
+    }
+    await _audioPlayer.seek(Duration(milliseconds: value.round()));
+  }
+
+  Future<void> _toggleRouteTracking() async {
+    if (_isRouteTracking) {
+      _routeTimer?.cancel();
+      setState(() {
+        _isRouteTracking = false;
+      });
+      return;
+    }
+
+    final CaptureMetadata? initialPoint = await _captureMetadata();
+    if (!mounted) {
+      return;
+    }
+
+    if (initialPoint == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo iniciar el rastreo de ruta por permisos de ubicación.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isRouteTracking = true;
+      _routePoints.add(initialPoint);
+    });
+
+    _routeTimer = Timer.periodic(const Duration(minutes: 4), (Timer timer) async {
+      final CaptureMetadata? point = await _captureMetadata();
+      if (!mounted || point == null || !_isRouteTracking) {
+        return;
+      }
+      setState(() {
+        _routePoints.add(point);
+      });
+    });
   }
 
   void _saveReceiverName() {
@@ -228,13 +399,22 @@ class _MyHomePageState extends State<MyHomePage> {
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 final String note = _noteController.text.trim();
                 if (note.isEmpty) {
                   return;
                 }
+                final CaptureMetadata? metadata = await _captureMetadata();
+                if (!context.mounted) {
+                  return;
+                }
                 setState(() {
-                  _notes.add(note);
+                  _noteCaptures.add(
+                    NoteCapture(
+                      note: note,
+                      metadata: metadata ?? CaptureMetadata(capturedAt: DateTime.now(), latitude: 0, longitude: 0),
+                    ),
+                  );
                 });
                 Navigator.of(context).pop();
               },
@@ -280,6 +460,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final double progressMax = _currentAudioDuration.inMilliseconds.toDouble().clamp(1, double.infinity);
+    final double progressValue = _currentAudioPosition.inMilliseconds
+        .toDouble()
+        .clamp(0, progressMax);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF090812),
@@ -303,8 +488,8 @@ class _MyHomePageState extends State<MyHomePage> {
               children: [
                 _pillButton(
                   icon: Icons.route,
-                  label: 'INICIAR RUTA',
-                  onPressed: () {},
+                  label: _isRouteTracking ? 'DETENER RUTA' : 'INICIAR RUTA',
+                  onPressed: _toggleRouteTracking,
                   background: const Color(0xFF6DB560),
                   foreground: Colors.white,
                 ),
@@ -351,18 +536,18 @@ class _MyHomePageState extends State<MyHomePage> {
                         label: 'Escanear QR',
                         onPressed: _openQrScanner,
                       ),
-                      if (_lastQrText != null) ...[
+                      if (_lastQrCapture != null) ...[
                         const SizedBox(height: 12),
                         Center(
                           child: QrImageView(
-                            data: _lastQrText!,
+                            data: _lastQrCapture!.value,
                             size: 160,
                             backgroundColor: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 8),
                         SelectableText(
-                          _lastQrText!,
+                          _lastQrCapture!.value,
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -376,24 +561,24 @@ class _MyHomePageState extends State<MyHomePage> {
                     children: [
                       _pillButton(
                         icon: Icons.camera_alt,
-                        label: 'Tomar Foto (${_photoBytesList.length}/10)',
+                        label: 'Tomar Foto (${_photoCaptures.length}/10)',
                         onPressed: _takePhoto,
                       ),
-                      if (_photoBytesList.isNotEmpty) ...[
+                      if (_photoCaptures.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 90,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: _photoBytesList.length,
+                            itemCount: _photoCaptures.length,
                             separatorBuilder: (_, _) => const SizedBox(width: 8),
                             itemBuilder: (BuildContext context, int index) {
                               return GestureDetector(
-                                onTap: () => _openPhotoPreview(_photoBytesList[index]),
+                                onTap: () => _openPhotoPreview(_photoCaptures[index].bytes),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Image.memory(
-                                    _photoBytesList[index],
+                                    _photoCaptures[index].bytes,
                                     width: 90,
                                     height: 90,
                                     fit: BoxFit.cover,
@@ -418,22 +603,22 @@ class _MyHomePageState extends State<MyHomePage> {
                         label: 'Añadir Nota',
                         onPressed: _showAddNoteDialog,
                       ),
-                      if (_notes.isNotEmpty) ...[
+                      if (_noteCaptures.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        ..._notes.asMap().entries.map(
-                          (MapEntry<int, String> entry) => Card(
+                        ..._noteCaptures.asMap().entries.map(
+                          (MapEntry<int, NoteCapture> entry) => Card(
                             child: ListTile(
                               leading: const Icon(Icons.sticky_note_2_outlined),
                               title: Text('Nota ${entry.key + 1}'),
                               subtitle: Text(
-                                entry.value,
+                                entry.value.note,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => NotePreviewPage(noteText: entry.value),
+                                    builder: (_) => NotePreviewPage(noteText: entry.value.note),
                                   ),
                                 );
                               },
@@ -454,18 +639,31 @@ class _MyHomePageState extends State<MyHomePage> {
                         label: _isRecording ? 'Detener Audio' : 'Grabar Audio',
                         onPressed: _toggleRecording,
                       ),
-                      if (_audioPaths.isNotEmpty) ...[
+                      if (_audioCaptures.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        ..._audioPaths.asMap().entries.map(
-                          (MapEntry<int, String> entry) => Card(
-                            child: ListTile(
-                              leading: Icon(
-                                _currentAudioPath == entry.value && _isAudioPlaying
-                                    ? Icons.pause_circle_filled
-                                    : Icons.play_circle_fill,
-                              ),
-                              title: Text('Audio ${entry.key + 1}'),
-                              onTap: () => _togglePlayPauseAudio(entry.value),
+                        ..._audioCaptures.asMap().entries.map(
+                          (MapEntry<int, AudioCapture> entry) => Card(
+                            child: Column(
+                              children: [
+                                ListTile(
+                                  leading: Icon(
+                                    _currentAudioPath == entry.value.path && _isAudioPlaying
+                                        ? Icons.pause_circle_filled
+                                        : Icons.play_circle_fill,
+                                  ),
+                                  title: Text('Audio ${entry.key + 1}'),
+                                  onTap: () => _togglePlayPauseAudio(entry.value.path),
+                                ),
+                                if (_currentAudioPath == entry.value.path)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    child: Slider(
+                                      value: progressValue,
+                                      max: progressMax,
+                                      onChanged: _seekAudio,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
