@@ -187,7 +187,10 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(Icons.travel_explore, size: 54, color: Color(0xFF1D4ED8)),
+                        Image.asset(
+                          'assets/img/traveling-logo.png',
+                          height: 64,
+                        ),
                         const SizedBox(height: 12),
                         const Text(
                           'Bienvenido a Traveling',

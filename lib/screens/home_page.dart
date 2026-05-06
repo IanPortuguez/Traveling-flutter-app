@@ -672,10 +672,13 @@ class _MyHomePageState extends State<MyHomePage> {
         centerTitle: true,
         title: Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.travel_explore, size: 22),
-            SizedBox(width: 8),
-            Text('Traveling'),
+          children: [
+            Image.asset(
+              'assets/img/traveling-logo.png',
+              height: 24,
+            ),
+            const SizedBox(width: 8),
+            const Text('Traveling'),
           ],
         ),
       ),
