@@ -868,40 +868,43 @@ class _MyHomePageState extends State<MyHomePage> {
                       if (_audioCaptures.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         ..._audioCaptures.asMap().entries.map(
-                          (MapEntry<int, AudioCapture> entry) => Card(
-                            child: Column(
-                              children: [
-                                ListTile(
-                                  leading: Icon(
-                                    _currentAudioPath == 'audio_${entry.key}' && _isAudioPlaying
-                                        ? Icons.pause_circle_filled
-                                        : Icons.play_circle_fill,
-                                  ),
-                                  title: Text('Audio ${entry.key + 1}'),
-                                  onTap: () async {
-                                    final Directory appDir = await getApplicationDocumentsDirectory();
-                                    final String tempPath =
-                                        '${appDir.path}/audio_preview_${entry.key}.m4a';
-                                    await File(tempPath).writeAsBytes(entry.value.bytes, flush: true);
-                                    await _togglePlayPauseAudio(tempPath);
-                                    if (!mounted) {
-                                      return;
-                                    }
-                                    setState(() {
-                                      _currentAudioPath = 'audio_${entry.key}';
-                                    });
-                                  },
-                                ),
-                                if (_currentAudioPath == 'audio_${entry.key}')
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                                    child: Slider(
-                                      value: progressValue,
-                                      max: progressMax,
-                                      onChanged: _seekAudio,
+                          (MapEntry<int, AudioCapture> entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                              child: Column(
+                                children: [
+                                  ListTile(
+                                    leading: Icon(
+                                      _currentAudioPath == 'audio_${entry.key}' && _isAudioPlaying
+                                          ? Icons.pause_circle_filled
+                                          : Icons.play_circle_fill,
                                     ),
+                                    title: Text('Audio ${entry.key + 1}'),
+                                    onTap: () async {
+                                      final Directory appDir = await getApplicationDocumentsDirectory();
+                                      final String tempPath =
+                                          '${appDir.path}/audio_preview_${entry.key}.m4a';
+                                      await File(tempPath).writeAsBytes(entry.value.bytes, flush: true);
+                                      await _togglePlayPauseAudio(tempPath);
+                                      if (!mounted) {
+                                        return;
+                                      }
+                                      setState(() {
+                                        _currentAudioPath = 'audio_${entry.key}';
+                                      });
+                                    },
                                   ),
-                              ],
+                                  if (_currentAudioPath == 'audio_${entry.key}')
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Slider(
+                                        value: progressValue,
+                                        max: progressMax,
+                                        onChanged: _seekAudio,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -928,11 +931,14 @@ class _MyHomePageState extends State<MyHomePage> {
                         const Text('Aún no hay entregas guardadas.')
                       else
                         ..._deliveryRecords.map(
-                          (DeliveryRecord record) => Card(
-                            child: ListTile(
-                              title: Text(record.qrTitle),
-                              subtitle: Text(
-                                'Guardado: ${record.savedAt.toLocal().toString().substring(0, 19)}',
+                          (DeliveryRecord record) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                              child: ListTile(
+                                title: Text(record.qrTitle),
+                                subtitle: Text(
+                                  'Guardado: ${record.savedAt.toLocal().toString().substring(0, 19)}',
+                                ),
                               ),
                             ),
                           ),
