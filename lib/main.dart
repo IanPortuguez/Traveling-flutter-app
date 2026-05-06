@@ -25,7 +25,31 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Traveling App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
+        scaffoldBackgroundColor: const Color(0xFFF3F6FB),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: Colors.blueGrey.shade100),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: Colors.blueGrey.shade100),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.3),
+          ),
+        ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
             backgroundColor: Colors.green,
@@ -134,6 +158,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
 
   @override
   void initState() {
@@ -250,10 +275,21 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 14),
                         TextField(
                           controller: _passwordController,
-                          obscureText: true,
+                          obscureText: !_isPasswordVisible,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
                             prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              tooltip: _isPasswordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña',
+                              onPressed: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                              icon: Icon(
+                                _isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              ),
+                            ),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                         ),
@@ -855,10 +891,27 @@ class _MyHomePageState extends State<MyHomePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDBE4F0)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x1A0F172A), blurRadius: 22, offset: Offset(0, 12)),
+        ],
       ),
       child: child,
+    );
+  }
+
+  Widget _sectionHeader(IconData icon, String title) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF1D4ED8)),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Color(0xFF0F172A)),
+        ),
+      ],
     );
   }
 
@@ -902,15 +955,14 @@ class _MyHomePageState extends State<MyHomePage> {
         bottom: true,
         child: Container(
           decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: NetworkImage(
-                'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?auto=format&fit=crop&w=800&q=60',
-              ),
-              fit: BoxFit.cover,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFEFF4FF), Color(0xFFF8FAFC)],
             ),
           ),
           child: Container(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -936,10 +988,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Nombre del Receptor(a):',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                      ),
+                      _sectionHeader(Icons.badge_outlined, 'Nombre del Receptor(a)'),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _receiverNameController,
@@ -969,6 +1018,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _sectionHeader(Icons.qr_code_2_rounded, 'Código QR'),
+                      const SizedBox(height: 10),
                       _pillButton(
                         icon: Icons.qr_code_scanner,
                         label: 'Escanear QR',
@@ -997,6 +1048,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _sectionHeader(Icons.photo_camera_back_outlined, 'Evidencia fotográfica'),
+                      const SizedBox(height: 10),
                       _pillButton(
                         icon: Icons.camera_alt,
                         label: 'Tomar Foto (${_photoCaptures.length}/10)',
@@ -1036,6 +1089,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _sectionHeader(Icons.note_alt_outlined, 'Notas de entrega'),
+                      const SizedBox(height: 10),
                       _pillButton(
                         icon: Icons.note_add,
                         label: 'Añadir Nota',
@@ -1072,6 +1127,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _sectionHeader(Icons.mic_none_rounded, 'Audio de respaldo'),
+                      const SizedBox(height: 10),
                       _pillButton(
                         icon: Icons.mic,
                         label: _isRecording ? 'Detener Audio' : 'Grabar Audio',
@@ -1134,10 +1191,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Entregas guardadas',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
+                      _sectionHeader(Icons.inventory_2_outlined, 'Entregas guardadas'),
                       const SizedBox(height: 8),
                       if (_deliveryRecords.isEmpty)
                         const Text('Aún no hay entregas guardadas.')
