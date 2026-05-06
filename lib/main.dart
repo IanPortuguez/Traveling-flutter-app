@@ -58,9 +58,9 @@ class PhotoCapture {
 }
 
 class AudioCapture {
-  const AudioCapture({required this.path, required this.metadata});
+  const AudioCapture({required this.bytes, required this.metadata});
 
-  final String path;
+  final Uint8List bytes;
   final CaptureMetadata metadata;
 }
 
@@ -271,12 +271,19 @@ class _MyHomePageState extends State<MyHomePage> {
       if (!mounted) {
         return;
       }
+      Uint8List? audioBytes;
+      if (path != null) {
+        final File audioFile = File(path);
+        if (await audioFile.exists()) {
+          audioBytes = await audioFile.readAsBytes();
+        }
+      }
       setState(() {
         _isRecording = false;
-        if (path != null) {
+        if (audioBytes != null) {
           _audioCaptures.add(
             AudioCapture(
-              path: path,
+              bytes: audioBytes,
               metadata: metadata ??
                   CaptureMetadata(capturedAt: DateTime.now(), latitude: 0, longitude: 0),
             ),
@@ -377,6 +384,26 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _saveDelivery() async {
+    final String receiverName = (_savedReceiverName ?? _receiverNameController.text).trim();
+    if (receiverName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes guardar obligatoriamente el nombre del receptor.')),
+      );
+      return;
+    }
+    if (_lastQrCapture == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes escanear obligatoriamente un QR antes de guardar.')),
+      );
+      return;
+    }
+    if (_isRouteTracking || !_routeCompleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primero detén la ruta para poder almacenar la entrega.')),
+      );
+      return;
+    }
+
     final Directory appDir = await getApplicationDocumentsDirectory();
     final String filePath = '${appDir.path}/entregas_guardadas.json';
     final File file = File(filePath);
@@ -393,7 +420,7 @@ class _MyHomePageState extends State<MyHomePage> {
     final String qrTitle = _lastQrCapture?.value ?? 'SIN_QR';
     final Map<String, dynamic> payload = <String, dynamic>{
       'savedAt': now.toIso8601String(),
-      'receiverName': _savedReceiverName,
+      'receiverName': receiverName,
       'routeTaken': _routePoints
           .map(
             (CaptureMetadata item) => <String, dynamic>{
@@ -408,10 +435,20 @@ class _MyHomePageState extends State<MyHomePage> {
         'completed': _routeCompleted,
       },
       'photosCount': _photoCaptures.length,
+      'photos': _photoCaptures
+          .map(
+            (PhotoCapture item) => <String, dynamic>{
+              'base64': base64Encode(item.bytes),
+              'capturedAt': item.metadata.capturedAt.toIso8601String(),
+              'latitude': item.metadata.latitude,
+              'longitude': item.metadata.longitude,
+            },
+          )
+          .toList(),
       'audios': _audioCaptures
           .map(
             (AudioCapture item) => <String, dynamic>{
-              'path': item.path,
+              'base64': base64Encode(item.bytes),
               'capturedAt': item.metadata.capturedAt.toIso8601String(),
               'latitude': item.metadata.latitude,
               'longitude': item.metadata.longitude,
@@ -616,7 +653,8 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF090812),
         foregroundColor: Colors.white,
-        title: const Text('Almacén 3R manager'),
+        centerTitle: true,
+        title: const Text('Traveling'),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -636,8 +674,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 _pillButton(
                   icon: Icons.route,
                   label: _isRouteTracking ? 'DETENER RUTA' : 'INICIAR RUTA',
-                  onPressed: _toggleRouteTracking,
-                  background: _isRouteTracking ? Colors.red : const Color(0xFF6DB560),
+                  onPressed: _routeCompleted ? null : _toggleRouteTracking,
+                  background: _routeCompleted
+                      ? const Color(0xFF6DB560).withValues(alpha: 0.35)
+                      : _isRouteTracking
+                          ? Colors.red
+                          : const Color(0xFF6DB560),
                   foreground: Colors.white,
                 ),
                 const SizedBox(height: 14),
@@ -794,14 +836,26 @@ class _MyHomePageState extends State<MyHomePage> {
                               children: [
                                 ListTile(
                                   leading: Icon(
-                                    _currentAudioPath == entry.value.path && _isAudioPlaying
+                                    _currentAudioPath == 'audio_${entry.key}' && _isAudioPlaying
                                         ? Icons.pause_circle_filled
                                         : Icons.play_circle_fill,
                                   ),
                                   title: Text('Audio ${entry.key + 1}'),
-                                  onTap: () => _togglePlayPauseAudio(entry.value.path),
+                                  onTap: () async {
+                                    final Directory appDir = await getApplicationDocumentsDirectory();
+                                    final String tempPath =
+                                        '${appDir.path}/audio_preview_${entry.key}.m4a';
+                                    await File(tempPath).writeAsBytes(entry.value.bytes, flush: true);
+                                    await _togglePlayPauseAudio(tempPath);
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      _currentAudioPath = 'audio_${entry.key}';
+                                    });
+                                  },
                                 ),
-                                if (_currentAudioPath == entry.value.path)
+                                if (_currentAudioPath == 'audio_${entry.key}')
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 12),
                                     child: Slider(
