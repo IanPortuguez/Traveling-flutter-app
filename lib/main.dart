@@ -11,6 +11,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -33,7 +34,201 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MyHomePage(title: 'Traveling App'),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _isLoading = true;
+  String? _savedUsername;
+  String? _savedPassword;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCredentials();
+  }
+
+  Future<void> _loadCredentials() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _savedUsername = prefs.getString('auth_username');
+      _savedPassword = prefs.getString('auth_password');
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _onAuthenticated({
+    required String username,
+    required String password,
+    required bool isFirstSetup,
+  }) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_username', username);
+    await prefs.setString('auth_password', password);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _savedUsername = username;
+      _savedPassword = password;
+    });
+    if (isFirstSetup && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Credenciales guardadas correctamente.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final bool isFirstSetup = _savedUsername == null || _savedPassword == null;
+    return LoginPage(
+      savedUsername: _savedUsername,
+      savedPassword: _savedPassword,
+      onAuthenticated: _onAuthenticated,
+      isFirstSetup: isFirstSetup,
+    );
+  }
+}
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({
+    super.key,
+    required this.savedUsername,
+    required this.savedPassword,
+    required this.isFirstSetup,
+    required this.onAuthenticated,
+  });
+
+  final String? savedUsername;
+  final String? savedPassword;
+  final bool isFirstSetup;
+  final Future<void> Function({
+    required String username,
+    required String password,
+    required bool isFirstSetup,
+  }) onAuthenticated;
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.text = widget.savedUsername ?? '';
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final String username = _usernameController.text.trim();
+    final String password = _passwordController.text.trim();
+
+    if (widget.isFirstSetup) {
+      if (username.isEmpty || password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Debes ingresar usuario y contraseña.')),
+        );
+        return;
+      }
+      await widget.onAuthenticated(
+        username: username,
+        password: password,
+        isFirstSetup: true,
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => MyHomePage(title: 'Traveling App', transportistaName: username),
+        ),
+      );
+      return;
+    }
+
+    if (password != widget.savedPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contraseña incorrecta.')),
+      );
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => MyHomePage(
+          title: 'Traveling App',
+          transportistaName: widget.savedUsername ?? username,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Inicio de sesión')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _usernameController,
+                  enabled: widget.isFirstSetup,
+                  decoration: const InputDecoration(labelText: 'Usuario'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Contraseña'),
+                ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: _handleLogin,
+                  child: Text(widget.isFirstSetup ? 'Guardar e ingresar' : 'Ingresar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -91,9 +286,10 @@ class QrCapture {
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title, required this.transportistaName});
 
   final String title;
+  final String transportistaName;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -420,6 +616,7 @@ class _MyHomePageState extends State<MyHomePage> {
     final String qrTitle = _lastQrCapture?.value ?? 'SIN_QR';
     final Map<String, dynamic> payload = <String, dynamic>{
       'savedAt': now.toIso8601String(),
+      'transportista': widget.transportistaName,
       'receiverName': receiverName,
       'routeTaken': _routePoints
           .map(
@@ -632,7 +829,9 @@ class _MyHomePageState extends State<MyHomePage> {
     return FilledButton.icon(
       style: FilledButton.styleFrom(
         backgroundColor: background,
+        disabledBackgroundColor: background.withValues(alpha: 0.75),
         foregroundColor: foreground,
+        disabledForegroundColor: foreground.withValues(alpha: 0.95),
         minimumSize: const Size.fromHeight(58),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
       ),
