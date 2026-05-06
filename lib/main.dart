@@ -198,33 +198,76 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Inicio de sesión')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _usernameController,
-                  enabled: widget.isFirstSetup,
-                  decoration: const InputDecoration(labelText: 'Usuario'),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0B1020), Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Card(
+                  elevation: 14,
+                  shadowColor: Colors.black45,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Icon(Icons.travel_explore, size: 54, color: Color(0xFF1D4ED8)),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Bienvenido a Traveling',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          widget.isFirstSetup
+                              ? 'Configura tus credenciales para empezar.'
+                              : 'Ingresa tu contraseña para continuar.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade700),
+                        ),
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: _usernameController,
+                          enabled: widget.isFirstSetup,
+                          decoration: InputDecoration(
+                            labelText: 'Usuario',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: _handleLogin,
+                          icon: const Icon(Icons.login),
+                          label: Text(widget.isFirstSetup ? 'Guardar e ingresar' : 'Ingresar'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Contraseña'),
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: _handleLogin,
-                  child: Text(widget.isFirstSetup ? 'Guardar e ingresar' : 'Ingresar'),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -855,19 +898,26 @@ class _MyHomePageState extends State<MyHomePage> {
         centerTitle: true,
         title: const Text('Traveling'),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: NetworkImage(
-              'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?auto=format&fit=crop&w=800&q=60',
-            ),
-            fit: BoxFit.cover,
-          ),
-        ),
+      body: SafeArea(
+        bottom: true,
         child: Container(
-          color: Colors.black.withValues(alpha: 0.35),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: NetworkImage(
+                'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?auto=format&fit=crop&w=800&q=60',
+              ),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.35),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).viewPadding.bottom,
+              ),
             child: Column(
               children: [
                 _pillButton(
@@ -1107,6 +1157,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),
