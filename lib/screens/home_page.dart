@@ -902,7 +902,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                     ),
                                   ),
                               ],
-                              ),
                             ),
                           ),
                         ),
@@ -934,7 +933,6 @@ class _MyHomePageState extends State<MyHomePage> {
                               title: Text(record.qrTitle),
                               subtitle: Text(
                                 'Guardado: ${record.savedAt.toLocal().toString().substring(0, 19)}',
-                              ),
                               ),
                             ),
                           ),
