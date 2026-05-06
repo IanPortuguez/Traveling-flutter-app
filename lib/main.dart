@@ -775,6 +775,33 @@ class _MyHomePageState extends State<MyHomePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Entrega guardada en: $filePath')),
     );
+
+    await _resetFormAfterSave();
+  }
+
+
+  Future<void> _resetFormAfterSave() async {
+    _receiverNameController.clear();
+    _noteController.clear();
+    await _audioPlayer.stop();
+    _routeTimer?.cancel();
+    setState(() {
+      _savedReceiverName = null;
+      _lastQrCapture = null;
+      _photoCaptures.clear();
+      _audioCaptures.clear();
+      _noteCaptures.clear();
+      _qrCaptures.clear();
+      _routePoints.clear();
+      _isRecording = false;
+      _isAudioPlaying = false;
+      _isRouteTracking = false;
+      _routeStartedOnce = false;
+      _routeCompleted = false;
+      _currentAudioPath = null;
+      _currentAudioDuration = Duration.zero;
+      _currentAudioPosition = Duration.zero;
+    });
   }
 
   Future<void> _toggleRouteTracking() async {
@@ -949,7 +976,14 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: const Color(0xFF090812),
         foregroundColor: Colors.white,
         centerTitle: true,
-        title: const Text('Traveling'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.travel_explore, size: 22),
+            SizedBox(width: 8),
+            Text('Traveling'),
+          ],
+        ),
       ),
       body: SafeArea(
         bottom: true,
@@ -1084,7 +1118,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
                 _actionPanel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1122,7 +1156,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 24),
                 _actionPanel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
