@@ -59,7 +59,12 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: SizedBox.expand(
+          child: Image(
+            image: AssetImage('assets/img/pantalla-carga-traveling.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
       );
     }
 
