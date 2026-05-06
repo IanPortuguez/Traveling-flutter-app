@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -70,6 +71,18 @@ class NoteCapture {
   final CaptureMetadata metadata;
 }
 
+class DeliveryRecord {
+  const DeliveryRecord({
+    required this.savedAt,
+    required this.qrTitle,
+    required this.filePath,
+  });
+
+  final DateTime savedAt;
+  final String qrTitle;
+  final String filePath;
+}
+
 class QrCapture {
   const QrCapture({required this.value, required this.metadata});
 
@@ -96,6 +109,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final List<QrCapture> _qrCaptures = <QrCapture>[];
   final List<CaptureMetadata> _routePoints = <CaptureMetadata>[];
   final TextEditingController _receiverNameController = TextEditingController();
+  final List<DeliveryRecord> _deliveryRecords = <DeliveryRecord>[];
   final TextEditingController _noteController = TextEditingController();
   QrCapture? _lastQrCapture;
   String? _savedReceiverName;
@@ -103,6 +117,8 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isRecording = false;
   bool _isAudioPlaying = false;
   bool _isRouteTracking = false;
+  bool _routeStartedOnce = false;
+  bool _routeCompleted = false;
   Timer? _routeTimer;
   Duration _currentAudioDuration = Duration.zero;
   Duration _currentAudioPosition = Duration.zero;
@@ -322,12 +338,142 @@ class _MyHomePageState extends State<MyHomePage> {
     await _audioPlayer.seek(Duration(milliseconds: value.round()));
   }
 
+  Future<void> _confirmStopRoute() async {
+    final bool? shouldStop = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('¿Detener ruta?'),
+          content: const Text(
+            '¿En verdad deseas detener la ruta? No se va a poder retomar para este pedido.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldStop != true || !mounted) {
+      return;
+    }
+
+    _routeTimer?.cancel();
+    setState(() {
+      _isRouteTracking = false;
+      _routeCompleted = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ruta detenida y almacenada internamente.')),
+    );
+  }
+
+  Future<void> _saveDelivery() async {
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final String filePath = '${appDir.path}/entregas_guardadas.json';
+    final File file = File(filePath);
+
+    List<dynamic> existingData = <dynamic>[];
+    if (await file.exists()) {
+      final String content = await file.readAsString();
+      if (content.trim().isNotEmpty) {
+        existingData = jsonDecode(content) as List<dynamic>;
+      }
+    }
+
+    final DateTime now = DateTime.now();
+    final String qrTitle = _lastQrCapture?.value ?? 'SIN_QR';
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'savedAt': now.toIso8601String(),
+      'receiverName': _savedReceiverName,
+      'routeTaken': _routePoints
+          .map(
+            (CaptureMetadata item) => <String, dynamic>{
+              'capturedAt': item.capturedAt.toIso8601String(),
+              'latitude': item.latitude,
+              'longitude': item.longitude,
+            },
+          )
+          .toList(),
+      'routeStatus': <String, dynamic>{
+        'started': _routeStartedOnce,
+        'completed': _routeCompleted,
+      },
+      'photosCount': _photoCaptures.length,
+      'audios': _audioCaptures
+          .map(
+            (AudioCapture item) => <String, dynamic>{
+              'path': item.path,
+              'capturedAt': item.metadata.capturedAt.toIso8601String(),
+              'latitude': item.metadata.latitude,
+              'longitude': item.metadata.longitude,
+            },
+          )
+          .toList(),
+      'notes': _noteCaptures
+          .map(
+            (NoteCapture item) => <String, dynamic>{
+              'note': item.note,
+              'capturedAt': item.metadata.capturedAt.toIso8601String(),
+              'latitude': item.metadata.latitude,
+              'longitude': item.metadata.longitude,
+            },
+          )
+          .toList(),
+      'qrs': _qrCaptures
+          .map(
+            (QrCapture item) => <String, dynamic>{
+              'value': item.value,
+              'capturedAt': item.metadata.capturedAt.toIso8601String(),
+              'latitude': item.metadata.latitude,
+              'longitude': item.metadata.longitude,
+            },
+          )
+          .toList(),
+      'qrPrimary': _lastQrCapture?.value,
+      'qrTitle': qrTitle,
+    };
+
+    existingData.add(payload);
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(existingData),
+      flush: true,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _deliveryRecords.insert(
+        0,
+        DeliveryRecord(savedAt: now, qrTitle: qrTitle, filePath: filePath),
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Entrega guardada en: $filePath')),
+    );
+  }
+
   Future<void> _toggleRouteTracking() async {
     if (_isRouteTracking) {
-      _routeTimer?.cancel();
-      setState(() {
-        _isRouteTracking = false;
-      });
+      await _confirmStopRoute();
+      return;
+    }
+
+    if (_routeCompleted || _routeStartedOnce) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Esta ruta ya fue usada para este pedido y no se puede retomar.')),
+      );
       return;
     }
 
@@ -345,6 +491,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     setState(() {
       _isRouteTracking = true;
+      _routeStartedOnce = true;
       _routePoints.add(initialPoint);
     });
 
@@ -490,7 +637,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   icon: Icons.route,
                   label: _isRouteTracking ? 'DETENER RUTA' : 'INICIAR RUTA',
                   onPressed: _toggleRouteTracking,
-                  background: const Color(0xFF6DB560),
+                  background: _isRouteTracking ? Colors.red : const Color(0xFF6DB560),
                   foreground: Colors.white,
                 ),
                 const SizedBox(height: 14),
@@ -668,6 +815,40 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         ),
                       ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _pillButton(
+                  icon: Icons.save,
+                  label: 'Guardar Entrega',
+                  onPressed: _saveDelivery,
+                  background: const Color(0xFF2979FF),
+                  foreground: Colors.white,
+                ),
+                const SizedBox(height: 14),
+                _actionPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Entregas guardadas',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_deliveryRecords.isEmpty)
+                        const Text('Aún no hay entregas guardadas.')
+                      else
+                        ..._deliveryRecords.map(
+                          (DeliveryRecord record) => Card(
+                            child: ListTile(
+                              title: Text(record.qrTitle),
+                              subtitle: Text(
+                                'Guardado: ${record.savedAt.toLocal().toString().substring(0, 19)}',
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
