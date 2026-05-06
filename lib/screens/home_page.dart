@@ -53,6 +53,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    unawaited(_loadSavedDeliveries());
     _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
       if (!mounted) {
         return;
@@ -308,6 +309,47 @@ class _MyHomePageState extends State<MyHomePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Ruta detenida y almacenada internamente.')),
     );
+  }
+
+  Future<void> _loadSavedDeliveries() async {
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final String filePath = '${appDir.path}/entregas_guardadas.json';
+    final File file = File(filePath);
+
+    if (!await file.exists()) {
+      return;
+    }
+
+    final String content = await file.readAsString();
+    if (content.trim().isEmpty) {
+      return;
+    }
+
+    final dynamic decoded = jsonDecode(content);
+    if (decoded is! List<dynamic>) {
+      return;
+    }
+
+    final List<DeliveryRecord> loadedRecords = decoded
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> item) {
+          final String qrTitle = (item['qrTitle'] as String?) ?? 'SIN_QR';
+          final String? savedAtRaw = item['savedAt'] as String?;
+          final DateTime savedAt = DateTime.tryParse(savedAtRaw ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return DeliveryRecord(savedAt: savedAt, qrTitle: qrTitle, filePath: filePath);
+        })
+        .toList()
+      ..sort((DeliveryRecord a, DeliveryRecord b) => b.savedAt.compareTo(a.savedAt));
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _deliveryRecords
+        ..clear()
+        ..addAll(loadedRecords);
+    });
   }
 
   Future<void> _saveDelivery() async {
@@ -785,22 +827,25 @@ class _MyHomePageState extends State<MyHomePage> {
                       if (_noteCaptures.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         ..._noteCaptures.asMap().entries.map(
-                          (MapEntry<int, NoteCapture> entry) => Card(
-                            child: ListTile(
-                              leading: const Icon(Icons.sticky_note_2_outlined),
-                              title: Text('Nota ${entry.key + 1}'),
-                              subtitle: Text(
-                                entry.value.note,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                          (MapEntry<int, NoteCapture> entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.sticky_note_2_outlined),
+                                title: Text('Nota ${entry.key + 1}'),
+                                subtitle: Text(
+                                  entry.value.note,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => NotePreviewPage(noteText: entry.value.note),
+                                    ),
+                                  );
+                                },
                               ),
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => NotePreviewPage(noteText: entry.value.note),
-                                  ),
-                                );
-                              },
                             ),
                           ),
                         ),
@@ -857,6 +902,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                     ),
                                   ),
                               ],
+                              ),
                             ),
                           ),
                         ),
@@ -889,6 +935,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               subtitle: Text(
                                 'Guardado: ${record.savedAt.toLocal().toString().substring(0, 19)}',
                               ),
+                              ),
                             ),
                           ),
                         ),
@@ -904,4 +951,3 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
-
