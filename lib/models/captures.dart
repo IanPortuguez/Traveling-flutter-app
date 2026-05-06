@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class CaptureMetadata {
   const CaptureMetadata({
     required this.capturedAt,
