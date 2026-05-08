@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -498,6 +499,70 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+
+  Future<void> _sendSavedInvoices() async {
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final List<FileSystemEntity> entities = appDir.listSync();
+    final List<File> jsonFiles = entities
+        .whereType<File>()
+        .where((File file) => file.path.toLowerCase().endsWith('.json'))
+        .toList();
+
+    if (jsonFiles.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay facturas guardadas para enviar.')),
+      );
+      return;
+    }
+
+    final Uri endpoint = Uri.parse('http://192.168.1.72:8000/api/shipments/');
+
+    try {
+      for (final File jsonFile in jsonFiles) {
+        final String content = await jsonFile.readAsString();
+        final http.Response response = await http.post(
+          endpoint,
+          headers: <String, String>{'Content-Type': 'application/json'},
+          body: content,
+        );
+
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw HttpException('Error enviando ${jsonFile.path}: ${response.statusCode}');
+        }
+      }
+
+      for (final File jsonFile in jsonFiles) {
+        if (await jsonFile.exists()) {
+          await jsonFile.delete();
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _deliveryRecords.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Facturas enviadas correctamente.')),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudieron enviar las facturas. Verifica tu red local e intenta nuevamente.'),
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleRouteTracking() async {
     if (_isRouteTracking) {
       await _confirmStopRoute();
@@ -946,6 +1011,14 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                           ),
                         ),
+                      const SizedBox(height: 12),
+                      _pillButton(
+                        icon: Icons.send_rounded,
+                        label: 'Enviar facturas guardadas',
+                        onPressed: _deliveryRecords.isEmpty ? null : _sendSavedInvoices,
+                        background: const Color(0xFF16A34A),
+                        foreground: Colors.white,
+                      ),
                     ],
                   ),
                 ),
