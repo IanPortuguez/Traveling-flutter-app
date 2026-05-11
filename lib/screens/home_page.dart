@@ -182,10 +182,13 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  void _openPhotoPreview(Uint8List photoBytes) {
+  void _openPhotoPreview(PhotoCapture capture) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PhotoPreviewPage(photoBytes: photoBytes),
+        builder: (_) => PhotoPreviewPage(
+          photoBytes: capture.bytes,
+          metadata: capture.metadata,
+        ),
       ),
     );
   }
@@ -861,7 +864,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             separatorBuilder: (_, _) => const SizedBox(width: 8),
                             itemBuilder: (BuildContext context, int index) {
                               return GestureDetector(
-                                onTap: () => _openPhotoPreview(_photoCaptures[index].bytes),
+                                onTap: () => _openPhotoPreview(_photoCaptures[index]),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Image.memory(
